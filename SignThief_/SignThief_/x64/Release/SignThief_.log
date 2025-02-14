@@ -1,0 +1,40 @@
+﻿  main.cpp
+C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Tools\MSVC\14.42.34433\include\xutility(4710,18): warning C4244: '=': 'wchar_t'에서 'char'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+  (소스 파일 'src/main.cpp'을(를) 컴파일하는 중)
+      C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Tools\MSVC\14.42.34433\include\xutility(4710,18):
+      템플릿 인스턴스화 컨텍스트(가장 오래된 인스턴스화 컨텍스트)가
+          C:\Users\OF\source\repos\SignThief_\SignThief_\src\main.cpp(111,77):
+          컴파일되는 함수 템플릿 인스턴스화 'std::basic_string<char,std::char_traits<char>,std::allocator<char>>::basic_string<std::_String_iterator<std::_String_val<std::_Simple_types<_Elem>>>,0>(_Iter,_Iter,const _Alloc &)'에 대한 참조를 확인하세요.
+          with
+          [
+              _Elem=wchar_t,
+              _Iter=std::_String_iterator<std::_String_val<std::_Simple_types<wchar_t>>>,
+              _Alloc=std::allocator<char>
+          ]
+              C:\Users\OF\source\repos\SignThief_\SignThief_\src\main.cpp(111,9):
+              'handle_drag_and_drop'에서 'std::basic_string<char,std::char_traits<char>,std::allocator<char>>::basic_string'에 대한 첫 번째 참조를 확인하세요.
+          C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Tools\MSVC\14.42.34433\include\xstring(793,17):
+          컴파일되는 함수 템플릿 인스턴스화 'void std::basic_string<char,std::char_traits<char>,std::allocator<char>>::_Construct_from_iter<wchar_t*,wchar_t*,_Size_type>(_Iter,const _Sent,_Size)'에 대한 참조를 확인하세요.
+          with
+          [
+              _Size_type=unsigned __int64,
+              _Iter=wchar_t *,
+              _Sent=wchar_t *,
+              _Size=unsigned __int64
+          ]
+          C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Tools\MSVC\14.42.34433\include\xstring(949,18):
+          컴파일되는 함수 템플릿 인스턴스화 '_OutIt *std::_Copy_n_unchecked4<wchar_t*,_Size,char*>(_InIt,_SizeTy,_OutIt)'에 대한 참조를 확인하세요.
+          with
+          [
+              _OutIt=char *,
+              _Size=unsigned __int64,
+              _InIt=wchar_t *,
+              _SizeTy=unsigned __int64
+          ]
+  
+  코드를 생성하고 있습니다.
+  2 of 486 functions ( 0.4%) were compiled, the rest were copied from previous compilation.
+    0 functions were new in current compilation
+    0 functions had inline decision re-evaluated but remain unchanged
+  코드를 생성했습니다.
+  SignThief_.vcxproj -> C:\Users\OF\source\repos\SignThief_\x64\Release\SignThief_.exe
