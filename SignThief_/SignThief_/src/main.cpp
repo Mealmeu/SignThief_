@@ -75,7 +75,7 @@ std::wstring open_file_dialog(const std::wstring& title, const std::wstring& fil
 }
 
 void handle_drag_and_drop() {
-    std::wstring signed_pe_path = open_file_dialog(L"Select Signed File", L"Executable Files\0*.EXE\0All Files\0*.*\0");
+    std::wstring signed_pe_path = open_file_dialog(L"Select Signed File", L"All Files\0*.*\0");
     if (signed_pe_path.empty()) {
         std::wcerr << L"Error: Signed file not selected." << std::endl;
         return;
